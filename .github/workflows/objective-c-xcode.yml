@@ -14,15 +14,25 @@ jobs:
 
       - name: Build App (Unsigned)
         run: |
-          # Buscar el archivo .xcodeproj o .xcworkspace automáticamente
-          if [ -d "*.xcworkspace" ]; then
-            workspace=$(ls -d *.xcworkspace)
+          # Buscar de forma recursiva si existe un archivo .xcworkspace o .xcodeproj en el repositorio
+          workspace=$(find . -maxdepth 3 -name "*.xcworkspace" -not -path "*/.*" | head -n 1)
+          project=$(find . -maxdepth 3 -name "*.xcodeproj" -not -path "*/.*" | head -n 1)
+
+          if [ -n "$workspace" ]; then
+            workspace_dir=$(dirname "$workspace")
+            workspace_name=$(basename "$workspace")
             scheme=$(xcodebuild -workspace "$workspace" -list -json | ruby -rjson -e 'puts JSON.parse(STDIN.gets)["workspace"]["schemes"][0]')
-            echo "Compilando workspace: $workspace con esquema: $scheme"
-            xcodebuild -workspace "$workspace" -scheme "$scheme" -sdk iphoneos -configuration Release CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build
+            echo "Compilando workspace: $workspace_name con esquema: $scheme"
+            cd "$workspace_dir"
+            xcodebuild -workspace "$workspace_name" -scheme "$scheme" -sdk iphoneos -configuration Release CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build
+          elif [ -n "$project" ]; then
+            project_dir=$(dirname "$project")
+            project_name=$(basename "$project")
+            scheme=$(xcodebuild -project "$project" -list -json | ruby -rjson -e 'puts JSON.parse(STDIN.gets)["project"]["targets'][0]')
+            echo "Compilando proyecto: $project_name con esquema: $scheme"
+            cd "$project_dir"
+            xcodebuild -project "$project_name" -scheme "$scheme" -sdk iphoneos -configuration Release CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build
           else
-            project=$(ls -d *.xcodeproj)
-            scheme=$(xcodebuild -project "$project" -list -json | ruby -rjson -e 'puts JSON.parse(STDIN.gets)["project"]["targets"][0]')
-            echo "Compilando proyecto: $project con esquema: $scheme"
-            xcodebuild -project "$project" -scheme "$scheme" -sdk iphoneos -configuration Release CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build
+            echo "Error: No se encontró ningún archivo .xcworkspace ni .xcodeproj en el repositorio."
+            exit 1
           fi
