@@ -14,25 +14,23 @@ jobs:
 
       - name: Build App (Unsigned)
         run: |
-          # Buscar de forma recursiva si existe un archivo .xcworkspace o .xcodeproj en el repositorio
-          workspace=$(find . -maxdepth 3 -name "*.xcworkspace" -not -path "*/.*" | head -n 1)
-          project=$(find . -maxdepth 3 -name "*.xcodeproj" -not -path "*/.*" | head -n 1)
-
-          if [ -n "$workspace" ]; then
-            workspace_dir=$(dirname "$workspace")
-            workspace_name=$(basename "$workspace")
-            scheme=$(xcodebuild -workspace "$workspace" -list -json | ruby -rjson -e 'puts JSON.parse(STDIN.gets)["workspace"]["schemes"][0]')
-            echo "Compilando workspace: $workspace_name con esquema: $scheme"
-            cd "$workspace_dir"
-            xcodebuild -workspace "$workspace_name" -scheme "$scheme" -sdk iphoneos -configuration Release CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build
-          elif [ -n "$project" ]; then
-            project_dir=$(dirname "$project")
-            project_name=$(basename "$project")
-            scheme=$(xcodebuild -project "$project" -list -json | ruby -rjson -e 'puts JSON.parse(STDIN.gets)["project"]["targets'][0]')
-            echo "Compilando proyecto: $project_name con esquema: $scheme"
-            cd "$project_dir"
-            xcodebuild -project "$project_name" -scheme "$scheme" -sdk iphoneos -configuration Release CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build
+          set -e
+          echo "Buscando archivos de proyecto Xcode..."
+          
+          PROJECT_FILE=$(find . -maxdepth 3 -name "*.xcodeproj" -not -path "*/.*" | head -n 1)
+          
+          if [ -n "$PROJECT_FILE" ]; then
+            PROJ_DIR=$(dirname "$PROJECT_FILE")
+            PROJ_NAME=$(basename "$PROJECT_FILE")
+            echo "Encontrado proyecto: $PROJ_NAME en $PROJ_DIR"
+            
+            cd "$PROJ_DIR"
+            SCHEME=$(xcodebuild -list -json | ruby -rjson -e 'p JSON.parse(STDIN.gets)["project"]["targets"][0]')
+            SCHEME=$(echo "$SCHEME" | tr -d '"')
+            echo "Usando esquema: $SCHEME"
+            
+            xcodebuild -project "$PROJ_NAME" -scheme "$SCHEME" -sdk iphoneos -configuration Release CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build
           else
-            echo "Error: No se encontró ningún archivo .xcworkspace ni .xcodeproj en el repositorio."
+            echo "Error: No se encontró ningún archivo .xcodeproj"
             exit 1
           fi
