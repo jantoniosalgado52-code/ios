@@ -1,0 +1,46 @@
+name: Build iOS App
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    name: Build and export IPA
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up code signing dummy (Ad-Hoc)
+        run: |
+          # Configuración básica para permitir la compilación local sin cuenta de pago de Apple Developer
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+
+      - name: Build and Archive
+        run: |
+          if [ "`ls -A | grep -i \\.xcworkspace\$`" ]; then 
+            filetype_parameter="workspace" && file_to_build="`ls -A | grep -i \\.xcworkspace\$`"
+          else 
+            filetype_parameter="project" && file_to_build="`ls -A | grep -i \\.xcodeproj\$`"
+          fi
+          file_to_build=`echo $file_to_build | awk '{$1=$1;print}'`
+          
+          # Buscar el esquema automáticamente
+          scheme=$(xcodebuild -list -json | ruby -rjson -e 'puts JSON.parse(STDIN.gets)["project"]["targets"][0]')
+          echo "Using scheme: $scheme"
+
+          # Compilar y empaquetar en una carpeta de salida (build)
+          xcodebuild clean archive -scheme "$scheme" -"$filetype_parameter" "$file_to_build" -archivePath "$PWD/build/App.xcarchive" CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+
+          # Exportar el archivo .ipa
+          xcodebuild -exportArchive -archivePath "$PWD/build/App.xcarchive" -exportPath "$PWD/build" -exportOptionsPlist ExportOptions.plist || xcodebuild -exportArchive -archivePath "$PWD/build/App.xcarchive" -exportPath "$PWD/build" -allowProvisioningUpdates
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-ipa
+          path: build/*.ipa
