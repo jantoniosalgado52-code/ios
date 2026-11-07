@@ -12,30 +12,32 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
+      - name: Fix Xcode Project Version for Compatibility
+        run: |
+          echo "Actualizando la versión del proyecto Xcode con Python..."
+          python3 -c '
+          import glob, re
+          files = glob.glob("**/*.xcodeproj/project.pbxproj", recursive=True)
+          for file_path in files:
+              with open(file_path, "r") as f:
+                  content = f.read()
+              # Cambiar cualquier objectVersion a 50 para hacerlo compatible
+              new_content = re.sub(r"objectVersion\s*=\s*\d+;", "objectVersion = 50;", content)
+              with open(file_path, "w") as f:
+                  f.write(new_content)
+              print(f"Actualizado con éxito: {file_path}")
+          '
+
       - name: Build App (Unsigned)
         run: |
           set -e
-          echo "Buscando archivos de proyecto Xcode..."
-          
           PROJECT_FILE=$(find . -maxdepth 3 -name "*.xcodeproj" -not -path "*/.*" | head -n 1)
+          PROJ_DIR=$(dirname "$PROJECT_FILE")
+          PROJ_NAME=$(basename "$PROJECT_FILE")
           
-          if [ -n "$PROJECT_FILE" ]; then
-            PROJ_DIR=$(dirname "$PROJECT_FILE")
-            PROJ_NAME=$(basename "$PROJECT_FILE")
-            echo "Encontrado proyecto: $PROJ_NAME en $PROJ_DIR"
-            
-            cd "$PROJ_DIR"
-            
-            # Solucionar incompatibilidad de versiones de formato de Xcode
-            echo "Actualizando formato del proyecto para hacerlo compatible..."
-            sed -i '' 's/objectVersion = 56;/objectVersion = 50;/g' "$PROJ_NAME/project.pbxproj" || true
-            
-            SCHEME=$(xcodebuild -list -json | ruby -rjson -e 'p JSON.parse(STDIN.gets)["project"]["targets"][0]')
-            SCHEME=$(echo "$SCHEME" | tr -d '"')
-            echo "Usando esquema: $SCHEME"
-            
-            xcodebuild -project "$PROJ_NAME" -scheme "$SCHEME" -sdk iphoneos -configuration Release CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build
-          else
-            echo "Error: No se encontró ningún archivo .xcodeproj"
-            exit 1
-          fi
+          cd "$PROJ_DIR"
+          SCHEME=$(xcodebuild -list -json | ruby -rjson -e 'p JSON.parse(STDIN.gets)["project"]["targets"][0]')
+          SCHEME=$(echo "$SCHEME" | tr -d '"')
+          echo "Usando esquema: $SCHEME"
+          
+          xcodebuild -project "$PROJ_NAME" -scheme "$SCHEME" -sdk iphoneos -configuration Release CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build
