@@ -21,12 +21,15 @@ jobs:
           for file_path in files:
               with open(file_path, "r") as f:
                   content = f.read()
-              # Cambiar cualquier objectVersion a 50 para hacerlo compatible
               new_content = re.sub(r"objectVersion\s*=\s*\d+;", "objectVersion = 50;", content)
               with open(file_path, "w") as f:
                   f.write(new_content)
-              print(f"Actualizado con éxito: {file_path}")
           '
+
+      - name: Force Git to use HTTPS instead of SSH
+        run: |
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git config --global url."https://github.com/".insteadOf "ssh://git@github.com/"
 
       - name: Build App (Unsigned)
         run: |
